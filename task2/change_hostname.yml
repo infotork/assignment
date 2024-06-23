@@ -1,0 +1,23 @@
+---
+- name: Change hostname for webservers1
+  hosts: webservers1
+  become: yes
+  tasks:
+    - name: Change the hostname
+      hostname:
+        name: "{{ new_hostname }}"
+
+    - name: Ensure the new hostname is applied
+      command: hostnamectl set-hostname {{ new_hostname }}
+
+- name: Change hostname for webservers2
+  hosts: webservers2
+  become: yes
+  tasks:
+    - name: Change the hostname
+      hostname:
+        name: "{{ new_hostname }}"
+
+    - name: Ensure the new hostname is applied
+      command: hostnamectl set-hostname {{ new_hostname }}
+

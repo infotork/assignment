@@ -1,0 +1,69 @@
+provider "aws" {
+  region = "us-east-2"
+}
+
+resource "aws_security_group" "allow_tomcat" {
+  name_prefix = "allow_tomcat"
+  
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH access"
+  }
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Tomcat access"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_tomcat"
+  }
+}
+
+resource "aws_instance" "tomcat" {
+  count         = 2
+  ami           = "ami-024e6efaf93d85776"  # Ubuntu 22.04 LTS (HVM), SSD Volume Type
+  instance_type = "t2.micro"
+  key_name      = "connect-ansible"  # Replace with your key name
+  vpc_security_group_ids = [aws_security_group.allow_tomcat.id]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+              echo "Starting user_data script"
+              sudo apt-get update
+              sudo apt-get install -y openjdk-8-jdk wget
+              wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.75/bin/apache-tomcat-9.0.75.tar.gz
+              sudo tar xzf apache-tomcat-9.0.75.tar.gz -C /opt/
+              sudo mv /opt/apache-tomcat-9.0.75 /opt/tomcat
+              sudo chown -R ubuntu:ubuntu /opt/tomcat
+              sudo chmod +x /opt/tomcat/bin/*.sh
+              sudo sed -i 's/port="8080"/port="8080" address="0.0.0.0"/' /opt/tomcat/conf/server.xml
+              sudo /opt/tomcat/bin/startup.sh
+              echo "Tomcat installation and startup complete"
+              EOF
+
+  tags = {
+    Name = "TomcatServer"
+  }
+}
+
+output "hostname_and_port" {
+  value = [
+    for instance in aws_instance.tomcat :
+    "${instance.public_ip}:8080"
+  ]
+}
